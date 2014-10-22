@@ -1,0 +1,94 @@
+---
+title: "Prediction Assignment Writeup"
+author: "Thomas Roh"
+date: "Wednesday, October 22, 2014"
+output: html_document
+---
+
+#Introduction
+
+A weight lifting study was conducted with six participants. Accelerometers were used to collect data on the movements of each of the subjects. The goal im this assignment is to train a machine learning classification algorithm that has a high degree of prediction accurracy for the five different weight lifting excercises. For this modeling, random forests were chosen as the modeling technique. Random forests have proven to be very effective in achieving high accuracy.
+
+#Data Cleaning and Feature Selection
+
+The original dataset consisted of 159 features and 19622 observations. Some features had a large number of missing values. Those features were removed and the resulting dataset did not have any missing values in remaining features. This was necessary since random forests do not work with missing values. After reviewing the remaining features only the features that had information from the accelerometers was selected. The features used in modeling are listed below:
+
+## Selected Features
+
+```{r,cache=TRUE,echo=F}
+library(caret)
+
+data <- read.csv('C:/Users/m097845/Google Drive/Scripts/Machine Learning/Practical Machine Learning/pml-training.csv')
+data[data == '#DIV/0!'] <- NA
+data[data == ''] <- NA
+data <- data[,(apply(data,2,function(x) sum(is.na(x))) < 1000)]
+
+set.seed(371)
+in.train <- createDataPartition(data$classe,p=.7,list = F)
+train.set <- data[in.train,]
+test.set <- data[-in.train,]
+
+names(data)[8:59]
+```
+
+# Model Training
+
+The dataset was split into a 70/30 training/testing sets. The training set was used to tune a random forest model with 100 trees. Training models with 50 and 150 trees were also used to determine a good number. 50 trees was not sufficient enough to predict well. 150 trees only provided a small improvement over 100 trees. The 100 tree model was trained with 5 different number of randomly selected variables used. 25 bootstraps were used to reduce overfitting in the training excercise. The plot below and output shows each of the 5 different models run. The model with 14 randomly selected predictors had the greatest accuracy so was chosen as the final model.
+
+## Model Training Summary
+
+```{r,cache=TRUE,echo=F}
+library(randomForest)
+form <- as.formula(paste('classe ~',paste(names(train.set)[9:ncol(train.set)-1],c(rep("+",54),''),collapse = ' '),
+                 collapse = ' '))
+
+fit.rf <- train(form,train.set,method = 'rf',importance = T,ntree = 100,tuneLength = 5)
+```
+
+```{r, echo=FALSE}
+plot(fit.rf,main = 'Model Training Selection')
+fit.rf
+```
+
+# Model Testing
+
+After training and choosing a model, the model was tested against test set to determine its effectiveness on out of sample prediction. The output below shows out-of-bag error rate to be .64% which is really good. The model is expected to perform well.
+
+## OOB Error Estimate
+
+```{r,echo=F}
+fit.rf$finalModel
+```
+
+The rules from the final model were applied to the testing data set.
+
+## Summary of Prediction Performance on Test Set
+
+```{r,echo = F}
+confusionMatrix(predict(fit.rf$finalModel, newdata =  test.set),test.set$classe)
+```
+
+The model performed very well on the out of sample testing set. The model is a good fit for prediction and is not overfitting.
+
+#Conclusion
+
+A random forest model was successfully trained on the data. To further investigate what features were influencing the model. The variable importance was tracked in the modeling.
+
+##Variable Importance
+
+```{r,echo = F}
+varImpPlot(fit.rf$finalModel,main = '')
+```
+
+Last, the final was used to make predictions on the prediction set for the assignment.
+
+## Assignment Predictions
+
+```{r,echo = F}
+predict.set <- read.csv('C:/Users/m097845/Google Drive/Scripts/Machine Learning/Practical Machine Learning/pml-testing.csv')
+
+predict.set <- predict.set[,names(data)[1:59]]
+
+data.frame(Problem.ID = 1:20,Prediction = predict(fit.rf$finalModel, newdata =  predict.set))
+```
+
